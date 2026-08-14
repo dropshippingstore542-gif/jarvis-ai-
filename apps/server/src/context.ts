@@ -1,5 +1,11 @@
-import { createLLMProvider, createSTTProvider, createTTSProvider, ToolRegistry } from "@jarvis/core";
-import type { Logger, STTProvider, TTSProvider } from "@jarvis/core";
+import {
+  createEmailProvider,
+  createLLMProvider,
+  createSTTProvider,
+  createTTSProvider,
+  ToolRegistry,
+} from "@jarvis/core";
+import type { EmailProvider, Logger, STTProvider, TTSProvider } from "@jarvis/core";
 import { config } from "./config.js";
 import { openDatabase } from "./db/client.js";
 import { createRepositories, type Repositories } from "./db/repositories/index.js";
@@ -27,6 +33,8 @@ export interface AppContext {
   /** Present only when STT_PROVIDER/TTS_PROVIDER are configured — see routes/voice.ts. */
   sttProvider?: STTProvider;
   ttsProvider?: TTSProvider;
+  /** Present only when EMAIL_PROVIDER is configured — see tools/builtins/emailTools.ts. */
+  emailProvider?: EmailProvider;
 }
 
 export async function createAppContext(logger: Logger): Promise<AppContext> {
@@ -37,11 +45,20 @@ export async function createAppContext(logger: Logger): Promise<AppContext> {
   const wsHub = new WsHub();
   const browserManager = new BrowserManager(logger.child({ module: "browser" }));
 
+  let emailProvider: EmailProvider | undefined;
+  try {
+    emailProvider = createEmailProvider(config.email.provider, config.email.smtp);
+  } catch {
+    emailProvider = undefined; // not configured — email.send reports this plainly, never fakes success
+  }
+
   registerBuiltinTools(toolRegistry, {
     memoryService,
     webSearchConfig: config.webSearch,
     browserManager,
     browserConfig: config.browser,
+    emailProvider,
+    calendarEvents: repos.calendarEvents,
   });
   await loadPlugins(toolRegistry, logger);
 
@@ -125,5 +142,6 @@ export async function createAppContext(logger: Logger): Promise<AppContext> {
     scheduler,
     sttProvider,
     ttsProvider,
+    emailProvider,
   };
 }

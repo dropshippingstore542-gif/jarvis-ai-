@@ -24,6 +24,8 @@ Jarvis
 ├── Vision                 browser.screenshot / vision.describe_image (implemented — real multi-modal messages)
 ├── Voice                  packages/core/src/voice + routes/voice.ts  (implemented — push-to-talk, real STT/TTS)
 ├── Automation Engine      apps/server/src/automation    (implemented — cron scheduler)
+├── Email                   packages/core/src/email       (implemented — real SMTP)
+├── Calendar                apps/server/src/calendar      (implemented — local + real ICS feed)
 ├── Security / Permissions apps/server/src/permissions  (implemented)
 ├── Plugin System           apps/server/src/plugins      (implemented — loader mechanism)
 ├── User Interface          apps/web                     (implemented)
@@ -107,6 +109,9 @@ schema to the JSON Schema shape both LLM providers expect.
 | `browser.click` / `browser.type` | medium | act on the page opened by `browser.open` in the same conversation |
 | `browser.screenshot` | safe | real screenshot of the open page — see "Vision" below |
 | `vision.describe_image` | safe | reads a real image file from the workspace — see "Vision" below |
+| `email.send` | **high** | real SMTP delivery — see "Email" below |
+| `calendar.create_event` | low | local, no OAuth — see "Calendar" below |
+| `calendar.list_events` | safe | read-only |
 
 **Registered but not implemented** (`stubTools.ts`) — calling one throws a
 `ToolNotImplementedError` naming exactly what's missing, so the model and
@@ -116,8 +121,6 @@ the user both see a clear failure, never a fabricated result:
 |---|---|
 | `computer.take_screenshot` | OS-level (not browser-page) screen capture — unavailable in a server-only environment; `browser.screenshot` covers the web-content case |
 | `computer.open_app` | a companion desktop process with OS process-launch permission |
-| `calendar.create_event` | Google Calendar/Outlook OAuth integration |
-| `email.send` | Gmail/SMTP integration with real credentials |
 
 No shell-exec tool exists at all. Spec §19/§41 call out arbitrary shell
 execution as the highest-risk capability in the whole system; it needs a
@@ -259,6 +262,53 @@ do:
   Tauri packaging described below) — genuinely a different deployment
   shape, not an oversight fixable by more server code.
 
+## Email
+
+`packages/core/src/email/`: `EmailProvider` (`send(message): Promise<{messageId}>`)
+mirrors the `LLMProvider`/`STTProvider`/`TTSProvider` shape. `SmtpEmailProvider`
+is a real `nodemailer` SMTP client — works with a Gmail/Outlook app password
+or any SMTP server, tested against a mocked transport asserting the actual
+`sendMail` call shape (`SmtpEmailProvider.test.ts`). `context.ts` constructs
+it once at boot the same way it does STT/TTS, leaving it `undefined` when
+`EMAIL_PROVIDER=none`; `email.send` (`apps/server/src/tools/builtins/
+emailTools.ts`) reports a clear error rather than a fake send when that's
+the case.
+
+This is the one tool in the whole system that both leaves the machine *and*
+is irreversible and visible to a third party — `permission: "high"` is not
+a formality here (see SECURITY.md), and it's the first tool that actually
+exercises the typed-CONFIRM approval UI end-to-end for something a real
+person would notice.
+
+## Calendar
+
+`apps/server/src/calendar/`: no OAuth, no Google/Outlook API — events live
+in a local `calendar_events` SQLite table
+(`CalendarEventRepository`) and are published as a real RFC 5545 iCalendar
+feed at `GET /api/calendar.ics` (`calendar/ics.ts` generates real
+`VCALENDAR`/`VEVENT` text — correct line-folding and text-escaping, tested
+directly in `ics.test.ts`). Subscribing to that URL from Google/Apple/
+Outlook calendar's "add by URL" is a completely standard calendar-app
+feature — the events genuinely show up there, not just inside Jarvis.
+
+Because calendar apps poll a subscribed feed URL server-to-server and
+generally can't attach a custom `Authorization` header, this one route is
+exempted from the normal bearer-auth hook and instead accepts the token as
+a `?token=` query parameter when `API_AUTH_TOKEN` is set — the same
+"long secret embedded in the URL" pattern real calendar providers use for
+private feed links (see `app.ts`, `routes/calendar.ts`). The Settings panel
+shows the exact URL to paste, token included.
+
+`calendar.create_event` is `low` risk (a local database write, not an
+external invite — nothing is sent anywhere until you choose to subscribe to
+the feed) and `calendar.list_events` is `safe`/read-only.
+
+**What this isn't**: a live two-way sync with an existing Google/Outlook
+calendar (so events created there don't appear in Jarvis, and there's no
+OAuth flow) — that would be a real but separate integration; the ICS feed
+is a one-way, read-only-from-the-external-app view of what Jarvis knows
+about.
+
 ## Automation engine & scheduler
 
 `apps/server/src/automation/`: `automations` (cron expression + a
@@ -378,9 +428,9 @@ end-to-end. See [PLUGIN_DEVELOPMENT.md](./PLUGIN_DEVELOPMENT.md).
 
 Per spec §40 ("do not fake capabilities"), each of these has a clear
 integration point today and a documented list of what's needed to finish it,
-rather than a button that pretends to work. (Voice, vision, and browser
-control used to be listed here — see the sections above; they're
-implemented now, not merely stubbed.)
+rather than a button that pretends to work. (Voice, vision, browser
+control, email, and calendar used to be listed here — see the sections
+above; they're implemented now, not merely stubbed.)
 
 - **Continuous wake-word listening**: see "Voice" above — push-to-talk is
   built and real; the always-on mic/wake-word loop is the piece that isn't.
@@ -399,9 +449,12 @@ implemented now, not merely stubbed.)
   `Tool` interfaces are agent-agnostic, so a specialized agent is "another
   orchestrator instance with a narrower tool registry" — no interface
   changes needed when it's worth building.
-- **Third-party integrations** (Gmail, Calendar, Shopify, etc.): each is a
-  future plugin behind the same `Tool` interface `email.send` /
-  `calendar.create_event` already stub.
+- **Third-party OAuth integrations** (Gmail/Google Calendar sync, Shopify,
+  Notion, Discord, etc.): email and calendar are real now, but via SMTP and
+  a local ICS feed rather than OAuth against a specific provider — see
+  "Email"/"Calendar" above for exactly what that does and doesn't cover.
+  A true Gmail-API or Google-Calendar-sync integration is still future
+  work, each a plugin behind the existing `Tool` interface.
 
 ## Desktop packaging
 

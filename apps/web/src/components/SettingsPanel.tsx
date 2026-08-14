@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, API_BASE } from "../lib/api";
 import type { ToolInfo } from "../lib/types";
 
 export function SettingsPanel() {
   const [settings, setSettings] = useState<Awaited<ReturnType<typeof api.getSettings>> | null>(null);
   const [tools, setTools] = useState<ToolInfo[]>([]);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     void api.getSettings().then(setSettings);
     void api.listTools().then((r) => setTools(r.tools));
   }, []);
+
+  const feedUrl = settings ? `${API_BASE}${settings.calendarFeedPath}` : "";
 
   return (
     <div className="panel">
@@ -29,16 +32,58 @@ export function SettingsPanel() {
       </div>
 
       <div className="card">
-        <div className="card-title">Voice (interface only — see ARCHITECTURE.md)</div>
+        <div className="card-title">Voice — push-to-talk</div>
         <div className="card-meta">
           <span>wake word: {settings?.voice.wakeWord ?? "…"}</span>
           <span>TTS: {settings?.voice.ttsProvider ?? "none"}</span>
           <span>STT: {settings?.voice.sttProvider ?? "none"}</span>
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-faint)" }}>
-          No microphone/speaker pipeline is wired up yet in this environment. These values are
-          stored and ready for Phase 5.
+          {settings?.voice.sttProvider === "none"
+            ? "Set STT_PROVIDER=openai + VOICE_API_KEY to enable the push-to-talk button."
+            : "Hold the mic button in the conversation view to talk. There's no always-listening wake-word mode — see ARCHITECTURE.md."}
         </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Email</div>
+        <div className="card-meta">
+          <span>provider: {settings?.emailProvider ?? "none"}</span>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-faint)" }}>
+          {settings?.emailProvider === "none"
+            ? "Set EMAIL_PROVIDER=smtp + SMTP_* in .env to let the assistant send email (high-risk, requires approval every time)."
+            : "email.send requires your explicit approval on every call — see the Audit Log for a record of what was sent."}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Calendar</div>
+        <div className="card-meta">
+          <span>local, no OAuth required</span>
+        </div>
+        {feedUrl && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 6 }}>
+              Subscribe to this URL from Google/Apple/Outlook calendar to see events the assistant creates:
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div className="modal-code" style={{ flex: 1, overflowX: "auto" }}>
+                {feedUrl}
+              </div>
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  void navigator.clipboard.writeText(feedUrl);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -47,8 +92,8 @@ export function SettingsPanel() {
           <span>{settings?.proactiveMode ?? "off"}</span>
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-faint)" }}>
-          No automation/scheduler executor exists yet — see ARCHITECTURE.md. This setting is
-          stored for when it does.
+          The automation engine runs regardless — this only affects future notification delivery.
+          See the Automations panel to create scheduled tasks.
         </div>
       </div>
 

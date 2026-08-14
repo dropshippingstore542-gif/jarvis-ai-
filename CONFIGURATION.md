@@ -61,6 +61,27 @@ send a voice message at all; `TTS_PROVIDER` is independently optional — with
 it unset, voice input still works and you get a text reply, just no spoken
 one.
 
+## Email
+
+| Variable | Default | Notes |
+|---|---|---|
+| `EMAIL_PROVIDER` | `none` | `none` \| `smtp` — real SMTP delivery via nodemailer when set |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | — / `587` / `false` | your SMTP server; works with Gmail (`smtp.gmail.com`, an app password, port 587) or any other provider |
+| `SMTP_USER` / `SMTP_PASS` | — | credentials — an app password is strongly preferred over your real account password |
+| `EMAIL_FROM` | — | the `From:` header on sent mail |
+
+`email.send` is `permission: "high"` — every call requires explicit typed
+approval, regardless of configuration. See SECURITY.md.
+
+## Calendar
+
+No environment variables — `calendar.create_event`/`.list_events` always
+work, storing events in the local SQLite database. `GET
+/api/calendar.ics` serves them as a real, standards-compliant iCalendar
+feed you can subscribe to from Google/Apple/Outlook calendar; the exact
+URL (including the `?token=` param when `API_AUTH_TOKEN` is set) is shown
+in the Settings panel.
+
 ## Proactive behavior
 
 | Variable | Default | Notes |

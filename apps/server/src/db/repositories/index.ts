@@ -7,6 +7,7 @@ import { AuditLogRepository } from "./auditLogRepository.js";
 import { SettingsRepository } from "./settingsRepository.js";
 import { AutomationRepository } from "./automationRepository.js";
 import { AutomationRunRepository } from "./automationRunRepository.js";
+import { CalendarEventRepository } from "./calendarEventRepository.js";
 
 export * from "./conversationRepository.js";
 export * from "./messageRepository.js";
@@ -16,6 +17,7 @@ export * from "./auditLogRepository.js";
 export * from "./settingsRepository.js";
 export * from "./automationRepository.js";
 export * from "./automationRunRepository.js";
+export * from "./calendarEventRepository.js";
 
 export interface Repositories {
   conversations: ConversationRepository;
@@ -26,6 +28,7 @@ export interface Repositories {
   settings: SettingsRepository;
   automations: AutomationRepository;
   automationRuns: AutomationRunRepository;
+  calendarEvents: CalendarEventRepository;
 }
 
 export function createRepositories(db: DB): Repositories {
@@ -38,5 +41,6 @@ export function createRepositories(db: DB): Repositories {
     settings: new SettingsRepository(db),
     automations: new AutomationRepository(db),
     automationRuns: new AutomationRunRepository(db),
+    calendarEvents: new CalendarEventRepository(db),
   };
 }

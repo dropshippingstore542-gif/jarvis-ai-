@@ -10,10 +10,14 @@ durable memory, a permission/approval system with a full audit log, real
 browser automation (Playwright, with an SSRF guard), a cron-based
 automation engine/scheduler that survives restarts without double-firing,
 real vision (the model genuinely sees screenshots and workspace images),
-and real voice (push-to-talk with actual speech-to-text/text-to-speech).
-What's left as a documented interface rather than built — continuous
-wake-word listening and OS-level desktop control — is left that way because
-a headless container has no microphone, speaker, or display to act on, not
+real voice (push-to-talk with actual speech-to-text/text-to-speech), real
+email (SMTP — the system's one high-risk, typed-CONFIRM action), and a
+real local calendar (no OAuth — subscribe your actual calendar app to a
+live feed URL). What's left as a documented interface rather than built —
+continuous wake-word listening, OS-level desktop control, and third-party
+OAuth integrations (Gmail/Google Calendar sync, Shopify, etc.) — is left
+that way because a headless container has no microphone, speaker, or
+display to act on, or because it's a genuinely separate integration, not
 because the code doesn't exist; see [ARCHITECTURE.md](./ARCHITECTURE.md)
 for exactly what's implemented vs. what's a documented seam and why.
 
@@ -59,7 +63,9 @@ plugins/          discoverable plugin packages (see PLUGIN_DEVELOPMENT.md)
 
 Built in phases per the original spec. Phase 1–3 (core backend, memory,
 tools/permissions/audit), Phase 4 (browser control, vision), Phase 5
-(voice — push-to-talk), and Phase 6 (automation engine/scheduler) are all
-implemented and tested. Continuous wake-word listening and OS-level desktop
-control remain documented interfaces — see ARCHITECTURE.md for what exists
-today and exactly what each remaining piece needs.
+(voice — push-to-talk), Phase 6 (automation engine/scheduler), and the
+email/calendar slice of Phase 7's integrations are all implemented and
+tested. Continuous wake-word listening, OS-level desktop control, and
+OAuth-based third-party integrations remain documented interfaces — see
+ARCHITECTURE.md for what exists today and exactly what each remaining
+piece needs.

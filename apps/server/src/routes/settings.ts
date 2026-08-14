@@ -15,6 +15,10 @@ export function registerSettingsRoutes(app: FastifyInstance, ctx: AppContext): v
     voice: { wakeWord: config.voice.wakeWord, ttsProvider: config.voice.ttsProvider, sttProvider: config.voice.sttProvider },
     proactiveMode: config.proactiveMode,
     webSearchProvider: config.webSearch.provider,
+    emailProvider: config.email.provider,
+    calendarFeedPath: config.server.authToken
+      ? `/api/calendar.ics?token=${config.server.authToken}`
+      : "/api/calendar.ics",
     custom: ctx.repos.settings.all(),
   }));
 

@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "@jarvis/core": "0.1.0",

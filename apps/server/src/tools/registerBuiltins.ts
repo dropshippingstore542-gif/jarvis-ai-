@@ -1,12 +1,15 @@
-import { ToolRegistry } from "@jarvis/core";
+import { ToolRegistry, type EmailProvider } from "@jarvis/core";
 import type { MemoryService } from "../memory/memoryService.js";
 import type { config } from "../config.js";
 import type { BrowserManager } from "../browser/browserManager.js";
+import type { CalendarEventRepository } from "../db/repositories/index.js";
 import { createMemoryTools } from "./builtins/memoryTools.js";
 import { createFilesystemTools } from "./builtins/filesystemTools.js";
 import { createWebSearchTools } from "./builtins/webSearchTools.js";
 import { createBrowserTools } from "./builtins/browserTools.js";
 import { createVisionTools } from "./builtins/visionTools.js";
+import { createEmailTools } from "./builtins/emailTools.js";
+import { createCalendarTools } from "./builtins/calendarTools.js";
 import { createStubTools } from "./builtins/stubTools.js";
 
 export function registerBuiltinTools(
@@ -16,11 +19,15 @@ export function registerBuiltinTools(
     webSearchConfig: (typeof config)["webSearch"];
     browserManager: BrowserManager;
     browserConfig: (typeof config)["browser"];
+    emailProvider: EmailProvider | undefined;
+    calendarEvents: CalendarEventRepository;
   },
 ): void {
   const filesystemTools = createFilesystemTools();
   const browserTools = createBrowserTools(deps.browserManager, deps.browserConfig);
   const visionTools = createVisionTools();
+  const emailTools = createEmailTools(deps.emailProvider);
+  const calendarTools = createCalendarTools(deps.calendarEvents);
   for (const tool of [
     ...createMemoryTools(deps.memoryService),
     filesystemTools.read,
@@ -35,6 +42,9 @@ export function registerBuiltinTools(
     browserTools.type,
     browserTools.screenshot,
     visionTools.describeImage,
+    emailTools.send,
+    calendarTools.createEvent,
+    calendarTools.listEvents,
     ...createStubTools(),
   ]) {
     registry.register(tool);

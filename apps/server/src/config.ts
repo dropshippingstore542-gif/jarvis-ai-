@@ -27,6 +27,17 @@ const envSchema = z.object({
   WAKE_WORD: z.string().default("JARVIS"),
   PROACTIVE_MODE: z.enum(["off", "low", "normal", "high"]).default("off"),
 
+  EMAIL_PROVIDER: z.enum(["none", "smtp"]).default("none"),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
+
   PORT: z.coerce.number().default(4317),
   HOST: z.string().default("127.0.0.1"),
   API_AUTH_TOKEN: z.string().optional(),
@@ -63,6 +74,17 @@ export const config = {
     sttProvider: env.STT_PROVIDER,
     apiKey: env.VOICE_API_KEY,
     wakeWord: env.WAKE_WORD,
+  },
+  email: {
+    provider: env.EMAIL_PROVIDER,
+    smtp: {
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE,
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+      from: env.EMAIL_FROM,
+    },
   },
   proactiveMode: env.PROACTIVE_MODE,
   server: {

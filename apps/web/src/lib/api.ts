@@ -69,6 +69,8 @@ export const api = {
       voice: { wakeWord: string; ttsProvider: string; sttProvider: string };
       proactiveMode: string;
       webSearchProvider: string;
+      emailProvider: string;
+      calendarFeedPath: string;
       custom: Record<string, string>;
     }>("/api/settings"),
 

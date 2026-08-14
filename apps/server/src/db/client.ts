@@ -92,6 +92,18 @@ CREATE TABLE IF NOT EXISTS automation_runs (
   summary TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_automation_runs_automation ON automation_runs(automation_id, started_at);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  location TEXT,
+  start_at TEXT NOT NULL,
+  end_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_at);
 `;
 
 export type DB = Database.Database;

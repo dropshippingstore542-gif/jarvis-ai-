@@ -6,10 +6,10 @@ Every tool declares a risk tier (`packages/core/src/types/permissions.ts`):
 
 | Tier | Examples | Behavior |
 |---|---|---|
-| `safe` | read memory, search web, list files, screenshot the open page, read a workspace image | auto-executes, audited |
-| `low` | write a file, create a memory, open a page in the browser, mkdir/move a file | auto-executes, audited |
+| `safe` | read memory, search web, list files, screenshot the open page, read a workspace image, list calendar events | auto-executes, audited |
+| `low` | write a file, create a memory, open a page in the browser, mkdir/move a file, create a calendar event | auto-executes, audited |
 | `medium` | click/type in the browser, (future) edit a shared doc | requires explicit approval |
-| `high` | **delete a file**, (future) send email, spend money | requires typed "CONFIRM" approval |
+| `high` | **delete a file, send email**, (future) spend money | requires typed "CONFIRM" approval |
 
 `filesystem.delete` is `high` deliberately — it's the spec's own worked
 example of a HIGH RISK action (§11), and unlike `.move`, there's no
@@ -82,6 +82,26 @@ defense" below) — the same rule as `web.search` results.
   image data leaves the machine beyond whatever LLM provider you've
   already configured for chat.
 
+## Email and calendar
+
+- **Email** is the highest-consequence tool in the system, even more than
+  `filesystem.delete`: it leaves the machine and lands in a real inbox,
+  irreversibly. `permission: "high"` applies with no exceptions —
+  `SmtpEmailProvider` never sends without going through
+  `PermissionEngine` first. Credentials (`SMTP_USER`/`SMTP_PASS`) load
+  server-side only, the same as every other secret — see "Secrets" below.
+  Prefer an app password over your real account password; nothing in this
+  codebase needs more than SMTP send access.
+- **Calendar** data (event titles/times/locations/descriptions) is stored
+  locally in SQLite, the same trust boundary as everything else in the
+  database — no external service ever sees it unless you subscribe an
+  external calendar app to your own `/api/calendar.ics` feed. That feed
+  route is intentionally exempted from the standard bearer-auth hook (see
+  "Auth" below) since calendar apps can't send a custom header when
+  polling it — treat the feed URL itself (with its `?token=` when set) as
+  a bearer credential: anyone who has it can read your event list, so
+  don't post it anywhere public.
+
 ## Automation engine
 
 Scheduled automations run through the exact same orchestrator, tools, and
@@ -98,10 +118,10 @@ read-only browsing) unless you're actively available to approve it.
 
 ## Secrets
 
-- All secrets (`AI_API_KEY`, `WEB_SEARCH_API_KEY`, `API_AUTH_TOKEN`) load
-  server-side only, from `.env` via `apps/server/src/config.ts`. None of
-  this is bundled into the frontend — `apps/web` never imports `.env` or
-  the config module.
+- All secrets (`AI_API_KEY`, `WEB_SEARCH_API_KEY`, `VOICE_API_KEY`,
+  `SMTP_PASS`, `API_AUTH_TOKEN`) load server-side only, from `.env` via
+  `apps/server/src/config.ts`. None of this is bundled into the frontend —
+  `apps/web` never imports `.env` or the config module.
 - `.env` is gitignored. `.env.example` documents every variable with no
   real values.
 - `AI_BASE_URL`/local-model use doesn't require a cloud key at all.
@@ -117,7 +137,10 @@ currently gate the `/ws/conversations/:id` upgrade request the way it gates
 REST calls — the practical protection for that endpoint today is binding to
 `127.0.0.1` (the default) rather than `0.0.0.0`. Swapping in real
 session/cookie auth is a contained change (`apps/server/src/auth.ts`) if
-this ever needs to be reachable beyond localhost.
+this ever needs to be reachable beyond localhost. `GET /api/calendar.ics`
+has the same shape of exemption, deliberately: it checks a `?token=` query
+param itself instead of going through the header-based hook — see
+"Email and calendar" above.
 
 ## Prompt-injection defense
 
@@ -151,11 +174,12 @@ duration. There is no API to delete or edit rows.
 ## What's honest vs. not implemented
 
 Per spec §40/§41: nothing in this codebase pretends to succeed. Tools that
-aren't built yet (`computer.*`, `calendar.*`, `email.*`) throw a
-`ToolNotImplementedError` naming exactly what's missing — they are never
-wired to return a fabricated success. An unconfigured voice provider
-returns a plain 400 from `/voice-message`, never a fake transcript or
-silent audio; a failed transcription returns 502 with the real upstream
-error, never a guessed transcript. Failed tool calls, denied approvals,
-and LLM provider errors are all reported to the user as failures, never
-silently swallowed.
+aren't built yet (`computer.*`) throw a `ToolNotImplementedError` naming
+exactly what's missing — they are never wired to return a fabricated
+success. An unconfigured voice provider returns a plain 400 from
+`/voice-message`, never a fake transcript or silent audio; a failed
+transcription returns 502 with the real upstream error, never a guessed
+transcript. `email.send` throws a clear "not configured" error rather than
+claiming a message was sent when `EMAIL_PROVIDER=none`. Failed tool calls,
+denied approvals, and LLM provider errors are all reported to the user as
+failures, never silently swallowed.

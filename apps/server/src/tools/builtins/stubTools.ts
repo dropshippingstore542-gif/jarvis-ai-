@@ -41,17 +41,5 @@ export function createStubTools(): Tool[] {
       "medium",
       "a companion desktop process (planned: Tauri shell) with OS process-launch permission",
     ),
-    stub(
-      "calendar.create_event",
-      "Create a calendar event",
-      "medium",
-      "a Google Calendar/Outlook integration with OAuth credentials configured",
-    ),
-    stub(
-      "email.send",
-      "Send an email",
-      "high",
-      "a Gmail/SMTP integration with OAuth or app-password credentials configured",
-    ),
   ];
 }

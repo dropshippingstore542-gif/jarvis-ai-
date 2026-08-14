@@ -137,6 +137,20 @@ at once (`npm run test`). Conventions used so far:
   into a hand-built `AppContext` (see `context.ts`'s `sttProvider`/
   `ttsProvider` fields) rather than fighting `config.ts`'s env-var
   singleton — much simpler than resetting modules mid-test.
+- `SmtpEmailProvider.test.ts` mocks the `nodemailer` module itself
+  (`vi.mock("nodemailer", ...)`, then `await import(...)` the module under
+  test *after* the mock is registered) and asserts the exact
+  `createTransport`/`sendMail` call shape — same "assert the real request,
+  fake the network" approach as the voice providers. `emailTools.ts`
+  follows the same injectable-provider pattern as STT/TTS
+  (`context.ts`'s `emailProvider` field), so `emailTools.test.ts` doesn't
+  need to touch SMTP at all.
+- `ics.test.ts` asserts against the literal generated iCalendar text
+  (`BEGIN:VEVENT`/`DTSTART:.../SUMMARY:...`, correct escaping of commas/
+  semicolons/newlines) — it's plain string generation, no reason to mock
+  anything. `routes/calendar.test.ts` hits the real route with `app.inject`
+  against an in-memory DB and checks the feed reflects what's actually
+  stored.
 
 ## Automations
 
