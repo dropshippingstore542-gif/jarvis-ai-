@@ -12,9 +12,11 @@ import { registerApprovalRoutes } from "./routes/approvals.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerWsRoutes } from "./routes/ws.js";
 import { registerAutomationRoutes } from "./routes/automations.js";
+import { registerVoiceRoutes } from "./routes/voice.js";
 
 export async function buildApp(ctx: AppContext) {
-  const app = Fastify({ logger: false });
+  // Default 1MB body limit is too small for base64-encoded audio uploads (voice-message).
+  const app = Fastify({ logger: false, bodyLimit: 25 * 1024 * 1024 });
 
   await app.register(cors, { origin: true });
   await app.register(websocket);
@@ -32,6 +34,7 @@ export async function buildApp(ctx: AppContext) {
   registerApprovalRoutes(app, ctx);
   registerSettingsRoutes(app, ctx);
   registerAutomationRoutes(app, ctx);
+  registerVoiceRoutes(app, ctx);
   registerWsRoutes(app, ctx);
 
   return app;

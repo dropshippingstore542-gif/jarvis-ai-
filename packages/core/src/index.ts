@@ -13,3 +13,9 @@ export { LocalProvider } from "./llm/LocalProvider.js";
 export * from "./tools/Tool.js";
 export * from "./tools/registry.js";
 export * from "./tools/toToolSpec.js";
+export * from "./tools/toolImageOutput.js";
+
+export * from "./voice/types.js";
+export * from "./voice/factory.js";
+export { OpenAITTSProvider } from "./voice/OpenAITTSProvider.js";
+export { OpenAISTTProvider } from "./voice/OpenAISTTProvider.js";

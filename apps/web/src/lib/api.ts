@@ -2,6 +2,7 @@ import type {
   AuditLogEntry,
   Automation,
   AutomationRun,
+  BrainEvent,
   Conversation,
   MemoryRecord,
   PendingAction,
@@ -82,4 +83,10 @@ export const api = {
     request<Automation>(`/api/automations/${id}/run`, { method: "POST" }),
   listAutomationRuns: (id: string) =>
     request<{ runs: AutomationRun[] }>(`/api/automations/${id}/runs`),
+
+  sendVoiceMessage: (conversationId: string, audio: { mimeType: string; base64: string }) =>
+    request<{ transcript: string; events: BrainEvent[]; speech?: { mimeType: string; base64: string } }>(
+      `/api/conversations/${conversationId}/voice-message`,
+      { method: "POST", body: JSON.stringify({ audio }) },
+    ),
 };

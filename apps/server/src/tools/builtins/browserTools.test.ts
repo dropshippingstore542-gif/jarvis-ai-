@@ -43,7 +43,7 @@ describe("browser tools (real Chromium, no network required)", () => {
   const manager = new BrowserManager(rootLogger.child({ test: "browserTools" }));
   // The test server binds to 127.0.0.1 (loopback), which the SSRF guard blocks by default —
   // bypass it here since this is a same-process test fixture, not a real external target.
-  const { open, click, type } = createBrowserTools(manager, { allowPrivateNetworks: true });
+  const { open, click, type, screenshot } = createBrowserTools(manager, { allowPrivateNetworks: true });
 
   const ctx: ToolContext = {
     conversationId: "browser-test",
@@ -87,5 +87,26 @@ describe("browser tools (real Chromium, no network required)", () => {
     } finally {
       await server.close();
     }
+  });
+
+  it("captures a real screenshot of the open page as a PNG", async () => {
+    const server = await startServer();
+    try {
+      await open.execute({ url: server.url }, ctx);
+      const result = await screenshot.execute({}, ctx);
+      expect(result.image.mimeType).toBe("image/png");
+      expect(result.width).toBeGreaterThan(0);
+      expect(result.height).toBeGreaterThan(0);
+      // A real PNG file starts with the 8-byte PNG signature.
+      const bytes = Buffer.from(result.image.base64, "base64");
+      expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("requires browser.open before screenshot", async () => {
+    const freshCtx = { ...ctx, conversationId: "browser-test-screenshot-fresh" };
+    await expect(screenshot.execute({}, freshCtx)).rejects.toThrow(/call browser\.open first/i);
   });
 });

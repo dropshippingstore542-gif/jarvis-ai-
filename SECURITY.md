@@ -6,10 +6,16 @@ Every tool declares a risk tier (`packages/core/src/types/permissions.ts`):
 
 | Tier | Examples | Behavior |
 |---|---|---|
-| `safe` | read memory, search web, list files | auto-executes, audited |
-| `low` | write a file, create a memory, open a page in the browser | auto-executes, audited |
+| `safe` | read memory, search web, list files, screenshot the open page, read a workspace image | auto-executes, audited |
+| `low` | write a file, create a memory, open a page in the browser, mkdir/move a file | auto-executes, audited |
 | `medium` | click/type in the browser, (future) edit a shared doc | requires explicit approval |
-| `high` | (future) delete files, send email, spend money | requires typed "CONFIRM" approval |
+| `high` | **delete a file**, (future) send email, spend money | requires typed "CONFIRM" approval |
+
+`filesystem.delete` is `high` deliberately — it's the spec's own worked
+example of a HIGH RISK action (§11), and unlike `.move`, there's no
+"refuse to clobber an existing file" guard that can make it safe by
+construction. It goes through the exact same typed-CONFIRM modal as every
+other high-risk action.
 
 `medium`/`high` actions create a `pending_actions` row and block the
 orchestrator (`PermissionEngine.authorize`) until a human calls
@@ -53,6 +59,28 @@ you mean to.
 Page content read via `browser.open`/`.click`/`.type` is treated as
 external, untrusted data by the system prompt (see "Prompt-injection
 defense" below) — the same rule as `web.search` results.
+
+## Vision and voice data
+
+- **Images**: `browser.screenshot` and `vision.describe_image` only ever
+  read what's already reachable through an already-permitted path — the
+  page the browser has open, or a file already inside
+  `JARVIS_WORKSPACE_DIR` (same sandbox as `filesystem.*`). Neither tool
+  introduces a new way to reach data outside those boundaries. Image bytes
+  are sent to whichever LLM provider is configured (same trust boundary as
+  the text of the conversation) and persisted in the local SQLite database
+  alongside the rest of the conversation — nowhere else.
+- **Voice**: audio recorded via push-to-talk is sent to the configured STT
+  provider (OpenAI's API, if `STT_PROVIDER=openai`) to be transcribed, and
+  the resulting text is treated exactly like a typed message from then on —
+  same memory/tools/permissions/audit path, no separate trust tier. Audio
+  bytes themselves are not persisted server-side; only the transcript is
+  stored, the same as if you'd typed it. A synthesized voice reply (TTS) is
+  generated per-request and streamed back, not cached.
+- Both flows call out to a third-party API only when you've explicitly
+  configured a provider — with everything left at `none`, no audio or
+  image data leaves the machine beyond whatever LLM provider you've
+  already configured for chat.
 
 ## Automation engine
 
@@ -125,6 +153,9 @@ duration. There is no API to delete or edit rows.
 Per spec §40/§41: nothing in this codebase pretends to succeed. Tools that
 aren't built yet (`computer.*`, `calendar.*`, `email.*`) throw a
 `ToolNotImplementedError` naming exactly what's missing — they are never
-wired to return a fabricated success. Failed tool calls, denied approvals,
+wired to return a fabricated success. An unconfigured voice provider
+returns a plain 400 from `/voice-message`, never a fake transcript or
+silent audio; a failed transcription returns 502 with the real upstream
+error, never a guessed transcript. Failed tool calls, denied approvals,
 and LLM provider errors are all reported to the user as failures, never
 silently swallowed.

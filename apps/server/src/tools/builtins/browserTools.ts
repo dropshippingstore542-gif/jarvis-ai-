@@ -29,11 +29,20 @@ async function extractPage(page: import("playwright").Page) {
 }
 
 type PageResult = { title: string; url: string; text: string; links: { text: string; href: string }[] };
+type ScreenshotResult = {
+  url: string;
+  width: number;
+  height: number;
+  image: { mimeType: string; base64: string };
+};
+
+const imageAttachmentSchema = z.object({ mimeType: z.string(), base64: z.string() });
 
 export interface BrowserTools {
   open: Tool<{ url: string }, PageResult>;
   click: Tool<{ selector: string }, PageResult>;
   type: Tool<{ selector: string; text: string; submit?: boolean }, PageResult>;
+  screenshot: Tool<{ fullPage?: boolean }, ScreenshotResult>;
 }
 
 export function createBrowserTools(
@@ -115,5 +124,32 @@ export function createBrowserTools(
     },
   };
 
-  return { open, click, type };
+  const screenshot: Tool<{ fullPage?: boolean }, ScreenshotResult> = {
+    name: "browser.screenshot",
+    description:
+      "Take a real screenshot of the currently open page and see it — use this to check how a page " +
+      "actually looks, read content that's easier to see visually than parse as text, or debug a " +
+      "broken layout. Call browser.open first.",
+    inputSchema: z.object({ fullPage: z.boolean().optional() }),
+    outputSchema: z.object({
+      url: z.string(),
+      width: z.number(),
+      height: z.number(),
+      image: imageAttachmentSchema,
+    }),
+    permission: "safe",
+    async execute(input, ctx) {
+      const page = browserManager.requirePage(ctx.conversationId);
+      const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+      const buffer = await page.screenshot({ type: "png", fullPage: input.fullPage ?? false });
+      return {
+        url: page.url(),
+        width: viewport.width,
+        height: viewport.height,
+        image: { mimeType: "image/png", base64: buffer.toString("base64") },
+      };
+    },
+  };
+
+  return { open, click, type, screenshot };
 }

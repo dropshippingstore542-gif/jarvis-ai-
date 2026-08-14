@@ -3,15 +3,15 @@
 ## Overview
 
 ```
-Me → Text (Voice: Phase 5) → AI Brain → Memory + Tools + Computer → Action → Text (Voice: Phase 5) Response
+Me → Text or Voice → AI Brain → Memory + Tools + Vision → Action → Text or Voice Response
 ```
 
 Jarvis is a TypeScript monorepo: a Node/Fastify backend holds all state and
 intelligence (the "brain"), a React frontend is a thin client over its
 REST + WebSocket API. Every capability — memory, filesystem access, web
-search, browser control — is a **tool**, registered in one place, selected
-dynamically by the model, and gated by a permission engine. Nothing is
-hard-coded to one AI provider or one database engine.
+search, browser control, vision — is a **tool**, registered in one place,
+selected dynamically by the model, and gated by a permission engine.
+Nothing is hard-coded to one AI provider or one database engine.
 
 ```
 Jarvis
@@ -21,13 +21,13 @@ Jarvis
 ├── Memory System          apps/server/src/memory       (implemented)
 ├── Tool System            packages/core/src/tools      (implemented)
 ├── Browser Control        apps/server/src/browser       (implemented — Playwright)
+├── Vision                 browser.screenshot / vision.describe_image (implemented — real multi-modal messages)
+├── Voice                  packages/core/src/voice + routes/voice.ts  (implemented — push-to-talk, real STT/TTS)
 ├── Automation Engine      apps/server/src/automation    (implemented — cron scheduler)
 ├── Security / Permissions apps/server/src/permissions  (implemented)
 ├── Plugin System           apps/server/src/plugins      (implemented — loader mechanism)
 ├── User Interface          apps/web                     (implemented)
-├── Voice System                                        (interface only — see below)
-├── Vision System                                        (interface only — see below)
-├── Computer Control                                     (interface only — see below)
+├── Computer Control                                     (partial — file management real, OS-level not — see below)
 └── Proactive Notifications                              (partial — see below)
 ```
 
@@ -57,8 +57,10 @@ result fed back to the model → loop (bounded to 6 iterations) → final respon
 
 Every step emits a structured `BrainEvent` (`apps/server/src/brain/trace.ts`)
 over the conversation's WebSocket: status changes
-(`thinking|working|waiting_for_approval|idle`, plus `listening|speaking`
-reserved for Phase 5), tool start/result/error, and text deltas. This is the
+(`thinking|working|waiting_for_approval|idle`, plus `speaking` — genuinely
+used while a synthesized voice reply plays back, see "Voice" below;
+`listening` is reserved for a future continuous-mic mode, unused by
+push-to-talk), tool start/result/error, and text deltas. This is the
 observability panel data (spec §36) — tool name, arguments, result, timing —
 deliberately never the model's internal reasoning.
 
@@ -98,9 +100,13 @@ schema to the JSON Schema shape both LLM providers expect.
 |---|---|---|
 | `memory.remember` / `.recall` / `.list` / `.forget` | safe/low | backed by SQLite |
 | `filesystem.read` / `.write` / `.list` | safe/low | hard-jailed to `JARVIS_WORKSPACE_DIR`, path-traversal rejected |
+| `filesystem.mkdir` / `.move` | low | create/organize files — see "Computer control" below |
+| `filesystem.delete` | **high** | irreversible — spec's own HIGH RISK example, requires typed CONFIRM |
 | `web.search` | safe | pluggable Brave/SerpAPI; reports "not configured" rather than faking results |
 | `browser.open` | low | real headless Chromium via Playwright — see "Browser automation" below |
 | `browser.click` / `browser.type` | medium | act on the page opened by `browser.open` in the same conversation |
+| `browser.screenshot` | safe | real screenshot of the open page — see "Vision" below |
+| `vision.describe_image` | safe | reads a real image file from the workspace — see "Vision" below |
 
 **Registered but not implemented** (`stubTools.ts`) — calling one throws a
 `ToolNotImplementedError` naming exactly what's missing, so the model and
@@ -108,7 +114,7 @@ the user both see a clear failure, never a fabricated result:
 
 | Tool | What's needed to finish it |
 |---|---|
-| `computer.take_screenshot` | OS-level screen capture — unavailable in a server-only environment |
+| `computer.take_screenshot` | OS-level (not browser-page) screen capture — unavailable in a server-only environment; `browser.screenshot` covers the web-content case |
 | `computer.open_app` | a companion desktop process with OS process-launch permission |
 | `calendar.create_event` | Google Calendar/Outlook OAuth integration |
 | `email.send` | Gmail/SMTP integration with real credentials |
@@ -138,6 +144,120 @@ with hostnames resolved via DNS first so a name that merely points at an
 internal address is caught too — see `urlSafety.test.ts`. Override with
 `JARVIS_BROWSER_ALLOW_PRIVATE_NETWORKS=true` only if you deliberately want
 the assistant reaching your internal network.
+
+## Vision
+
+Real, not faked: the model genuinely sees image bytes, not a text
+description of them. `packages/core/src/llm/types.ts`'s `ChatMessage` has an
+optional `images?: ImageAttachment[]` (real `{mimeType, base64}` bytes).
+Any tool can produce one — the convention (`packages/core/src/tools/
+toolImageOutput.ts`) is just an `image` field shaped like that on the tool's
+output. The orchestrator (`brain/orchestrator.ts`) checks every successful
+tool result for this field and, when present, attaches the image to that
+tool-result `ChatMessage` and strips the base64 out of the JSON text
+version (so it isn't duplicated) — see `orchestrator.test.ts`, which proves
+an image survives from a tool call into the *next* model turn.
+
+Two tools produce images today:
+
+- **`browser.screenshot`** — a real Playwright screenshot (PNG) of the
+  currently open page. Answers the spec's own example ("look at this
+  screenshot and tell me why this website is broken") for web content.
+- **`vision.describe_image`** — reads a real image file
+  (png/jpg/jpeg/gif/webp) from the sandboxed workspace directory and
+  attaches its exact bytes. Use it by dropping a screenshot/photo/document
+  into the workspace and asking about it.
+
+Each provider represents an image differently, per its own API's rules
+(`AnthropicProvider`/`OpenAIProvider`, tested in
+`*Provider.test.ts`): Anthropic supports images directly inside a
+`tool_result` content block, so the image rides along with that turn.
+OpenAI's tool-result message schema is text-only, so `OpenAIProvider`
+keeps the tool message as text and injects one synthetic `user` message
+right after it carrying the image — the model still sees it on the same
+turn, just via a different message shape. `LocalProvider` inherits
+whatever the local model actually supports; a model with no vision
+capability will just not act on the image, not silently break.
+
+Full-fidelity image bytes are persisted (`messages.images` column,
+`MessageRepository`) so a screenshot the model saw two turns ago is still
+visible to it now, not just for the one turn it arrived on. The frontend's
+`ActivityChip` renders a thumbnail inline when a tool result carries an
+image, so you can see exactly what the model saw.
+
+**What this isn't**: OS-level screen capture (arbitrary desktop
+screenshots) — see "Computer control" below.
+
+## Voice
+
+Real speech-to-text and text-to-speech, real browser microphone capture —
+push-to-talk, not the spec's continuous wake-word listening (see "What
+isn't built" below for exactly why and what that would take).
+
+`packages/core/src/voice/`: `STTProvider`/`TTSProvider` interfaces mirror
+`LLMProvider`'s shape. `OpenAISTTProvider` calls the real Whisper
+transcription endpoint (multipart upload); `OpenAITTSProvider` calls the
+real speech endpoint and returns real audio bytes — both are genuine HTTP
+clients (tested against a mocked `fetch`, `OpenAI*Provider.test.ts`), not
+stubs. Configured via `STT_PROVIDER`/`TTS_PROVIDER`/`VOICE_API_KEY`;
+`createSTTProvider("none", …)`/`createTTSProvider("none", …)` throw a
+`VoiceConfigError` rather than returning fake audio/text.
+
+Flow (`POST /api/conversations/:id/voice-message`,
+`apps/server/src/routes/voice.ts`):
+
+```
+browser mic (MediaRecorder)  →  base64 audio  →  STT (real transcript)
+     →  the SAME Orchestrator.handleUserMessage() a typed message uses
+     →  final text  →  TTS (real audio)  →  played back in the browser
+```
+
+`context.ts` constructs `sttProvider`/`ttsProvider` once at boot (same
+pattern as the LLM provider) and leaves them `undefined` when
+unconfigured; the route checks for that and returns a clear 400 rather than
+attempting a call — see `routes/voice.test.ts`, which covers the
+unconfigured path, a successful transcribe→respond→synthesize round trip
+(with fake providers, since this environment can't reach OpenAI), the
+transcription-failure path (502, not a fabricated transcript), and the
+TTS-unconfigured-but-STT-fine path (still returns the text reply).
+
+`apps/web/src/lib/useVoiceRecorder.ts` + `VoiceButton.tsx`: a real
+`navigator.mediaDevices.getUserMedia`/`MediaRecorder`-based push-to-talk
+button — press-and-hold records, release sends. This runs in the *user's*
+browser, wherever they open the web UI, so it has real mic/speaker access
+regardless of what this development container has.
+
+**What isn't built**: a continuous "always listening for the wake word"
+loop. That needs a streaming audio pipeline plus a wake-word detection
+model (e.g. Porcupine/openWakeWord) running client-side before anything is
+sent to the server — a materially bigger feature than push-to-talk, which
+the spec itself lists as an acceptable fallback (§5). `WAKE_WORD` is
+stored and shown in Settings for when that's built; today nothing acts on
+it. `AssistantStatus.listening` is reserved the same way; `speaking` is
+genuinely used today, driven by TTS playback in the browser.
+
+## Computer control
+
+Partially real, split honestly by what a headless container can and can't
+do:
+
+- **File management** — real and sandboxed: `filesystem.mkdir` (low),
+  `filesystem.move` (low, refuses to silently overwrite an existing
+  destination), `filesystem.delete` (**high** — matches the spec's own
+  "delete files" HIGH RISK example exactly, requires the typed-CONFIRM
+  approval flow). Together with the pre-existing `read`/`write`/`list`,
+  this covers the spec's "create folders, rename files, move files,
+  organize files" bucket in full.
+- **Browser-based "open/navigate/click/type"** — real, see "Browser
+  automation" above.
+- **OS-level app launching, arbitrary desktop screenshots, input
+  injection** — still `computer.open_app`/`computer.take_screenshot` stubs.
+  This is not a missing-code problem: a headless Linux server container has
+  no display server and no desktop session, so "launch an app the user can
+  see" or "screenshot the whole desktop" has nothing to act on here. It
+  needs a companion process running on the user's actual desktop (or the
+  Tauri packaging described below) — genuinely a different deployment
+  shape, not an oversight fixable by more server code.
 
 ## Automation engine & scheduler
 
@@ -225,21 +345,24 @@ interfaces, not touching callers.
 ## API surface
 
 REST (`apps/server/src/routes/`): conversations, messages, tools, memories,
-audit log, approvals, settings. One WebSocket per conversation
-(`/ws/conversations/:id`) streams `BrainEvent`s live; `POST
+audit log, approvals, settings, automations, voice. One WebSocket per
+conversation (`/ws/conversations/:id`) streams `BrainEvent`s live; `POST
 /conversations/:id/messages` is a buffered non-streaming fallback (useful
-for scripts/tests, and as the "text-only fallback" spec §5 asks for even
-before voice exists).
+for scripts/tests, and matches spec §5's "text-only fallback" requirement
+even when voice is configured). `POST /conversations/:id/voice-message` is
+the voice equivalent — see "Voice" above.
 
 ## Frontend
 
 `apps/web`: React + Vite + TypeScript, hand-rolled dark theme (no UI kit) —
-conversation view with streaming text and inline tool-activity chips, a
-status badge, quick actions, a memory manager (search/remember/confirm/
-delete/clear), an audit log viewer, and an approval modal (plus a distinct
-high-risk variant). Settings panel shows the effective AI/voice/proactive
-config (env-driven, restart to change) and every registered tool with its
-permission level.
+conversation view with streaming text and inline tool-activity chips
+(including a rendered thumbnail when a tool result carries a real image —
+see "Vision"), a status badge, quick actions, a push-to-talk voice button,
+a memory manager (search/remember/confirm/delete/clear), an audit log
+viewer, an Automations panel (create/enable/disable/run-now/delete/history),
+and an approval modal (plus a distinct high-risk variant). Settings panel
+shows the effective AI/voice/proactive config (env-driven, restart to
+change) and every registered tool with its permission level.
 
 ## Plugin system
 
@@ -255,21 +378,17 @@ end-to-end. See [PLUGIN_DEVELOPMENT.md](./PLUGIN_DEVELOPMENT.md).
 
 Per spec §40 ("do not fake capabilities"), each of these has a clear
 integration point today and a documented list of what's needed to finish it,
-rather than a button that pretends to work:
+rather than a button that pretends to work. (Voice, vision, and browser
+control used to be listed here — see the sections above; they're
+implemented now, not merely stubbed.)
 
-- **Voice** (STT/TTS/wake word): `.env` already has `TTS_PROVIDER`,
-  `STT_PROVIDER`, `WAKE_WORD`; `AssistantStatus` already includes
-  `listening`/`speaking`. Needs: a provider abstraction mirroring
-  `LLMProvider` for STT/TTS, and a real audio device — this server-only
-  container has none.
-- **Vision**: needs an image capture path (screenshot or upload) feeding a
-  vision-capable model call; the LLM abstraction already supports
-  multi-modal providers, just not wired to an input source yet.
-- **Computer control**: `computer.*` tools are registered and typed; needs
-  OS-level access (screen capture, process launch) that a server-only
-  container doesn't have — see "Desktop packaging" below. (Browser
-  automation, unlike this, is implemented — see above.)
-- **Proactive notifications**: the automation engine above is real and
+- **Continuous wake-word listening**: see "Voice" above — push-to-talk is
+  built and real; the always-on mic/wake-word loop is the piece that isn't.
+- **OS-level computer control** (arbitrary app launching, whole-desktop
+  screenshots, input injection): see "Computer control" above — needs a
+  companion process with real desktop access, which a headless container
+  fundamentally doesn't have.
+- **Proactive notifications**: the automation engine is real and
   `PROACTIVE_MODE` is stored in settings, but there's no delivery channel
   yet beyond the Automations panel's run history — an automation runs and
   its result is recorded, it just doesn't push a desktop/mobile
@@ -287,7 +406,8 @@ rather than a button that pretends to work:
 ## Desktop packaging
 
 Not built this pass (Phase 1 is explicitly "core backend + chat interface").
-When OS-level features (screenshots, computer control) are implemented,
-wrapping this same web frontend in **Tauri** is the intended path — smaller
-and better-sandboxed than Electron, and the Rust toolchain this decision
+When OS-level features (whole-desktop screenshots, launching arbitrary
+apps — see "Computer control" above) are implemented, wrapping this same
+web frontend in **Tauri** is the intended path — smaller and
+better-sandboxed than Electron, and the Rust toolchain this decision
 depends on is already available in this environment.

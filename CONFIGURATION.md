@@ -47,13 +47,19 @@ unconfigured rather than returning fabricated results.
 |---|---|---|
 | `JARVIS_BROWSER_ALLOW_PRIVATE_NETWORKS` | `false` | set `true` only to let `browser.*` reach loopback/private/link-local addresses — see SECURITY.md's SSRF guard section before enabling |
 
-## Voice (stored, not yet wired to a real pipeline — see ARCHITECTURE.md)
+## Voice
 
 | Variable | Default | Notes |
 |---|---|---|
-| `TTS_PROVIDER` | `none` | reserved for Phase 5 |
-| `STT_PROVIDER` | `none` | reserved for Phase 5 |
-| `WAKE_WORD` | `JARVIS` | reserved for Phase 5; surfaced in the system prompt today for text-mode consistency only |
+| `TTS_PROVIDER` | `none` | `none` \| `openai` — real OpenAI TTS when set |
+| `STT_PROVIDER` | `none` | `none` \| `openai` — real Whisper transcription when set |
+| `VOICE_API_KEY` | — | required for either provider above; shared by both (both are OpenAI endpoints) |
+| `WAKE_WORD` | `JARVIS` | surfaced in the system prompt and settings; no continuous mic-listening loop exists to act on it yet — see ARCHITECTURE.md |
+
+Push-to-talk in the web UI (`VoiceButton`) needs `STT_PROVIDER` configured to
+send a voice message at all; `TTS_PROVIDER` is independently optional — with
+it unset, voice input still works and you get a text reply, just no spoken
+one.
 
 ## Proactive behavior
 

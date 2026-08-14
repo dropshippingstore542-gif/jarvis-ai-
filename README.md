@@ -7,11 +7,15 @@ control, automation) without a rewrite.
 
 This is **V1+**: a working chat interface, a model-agnostic AI brain,
 durable memory, a permission/approval system with a full audit log, real
-browser automation (Playwright, with an SSRF guard), and a cron-based
-automation engine/scheduler that survives restarts without double-firing.
-Voice, vision, and computer control are designed as clean interfaces with
-documented next steps — see [ARCHITECTURE.md](./ARCHITECTURE.md) for
-exactly what's implemented vs. what's a documented seam.
+browser automation (Playwright, with an SSRF guard), a cron-based
+automation engine/scheduler that survives restarts without double-firing,
+real vision (the model genuinely sees screenshots and workspace images),
+and real voice (push-to-talk with actual speech-to-text/text-to-speech).
+What's left as a documented interface rather than built — continuous
+wake-word listening and OS-level desktop control — is left that way because
+a headless container has no microphone, speaker, or display to act on, not
+because the code doesn't exist; see [ARCHITECTURE.md](./ARCHITECTURE.md)
+for exactly what's implemented vs. what's a documented seam and why.
 
 ## Quickstart
 
@@ -54,7 +58,8 @@ plugins/          discoverable plugin packages (see PLUGIN_DEVELOPMENT.md)
 ## Status
 
 Built in phases per the original spec. Phase 1–3 (core backend, memory,
-tools/permissions/audit) and Phase 6 (automation engine/scheduler) are
-implemented and tested, plus browser automation from Phase 3/4. Voice,
-vision, and computer control remain documented interfaces only — see
-ARCHITECTURE.md for what exists today and what each needs.
+tools/permissions/audit), Phase 4 (browser control, vision), Phase 5
+(voice — push-to-talk), and Phase 6 (automation engine/scheduler) are all
+implemented and tested. Continuous wake-word listening and OS-level desktop
+control remain documented interfaces — see ARCHITECTURE.md for what exists
+today and exactly what each remaining piece needs.

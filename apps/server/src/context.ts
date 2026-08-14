@@ -1,5 +1,5 @@
-import { createLLMProvider, ToolRegistry } from "@jarvis/core";
-import type { Logger } from "@jarvis/core";
+import { createLLMProvider, createSTTProvider, createTTSProvider, ToolRegistry } from "@jarvis/core";
+import type { Logger, STTProvider, TTSProvider } from "@jarvis/core";
 import { config } from "./config.js";
 import { openDatabase } from "./db/client.js";
 import { createRepositories, type Repositories } from "./db/repositories/index.js";
@@ -24,6 +24,9 @@ export interface AppContext {
   logger: Logger;
   browserManager: BrowserManager;
   scheduler: Scheduler;
+  /** Present only when STT_PROVIDER/TTS_PROVIDER are configured — see routes/voice.ts. */
+  sttProvider?: STTProvider;
+  ttsProvider?: TTSProvider;
 }
 
 export async function createAppContext(logger: Logger): Promise<AppContext> {
@@ -86,6 +89,20 @@ export async function createAppContext(logger: Logger): Promise<AppContext> {
     config.voice.wakeWord,
   );
 
+  let sttProvider: STTProvider | undefined;
+  try {
+    sttProvider = createSTTProvider(config.voice.sttProvider, config.voice.apiKey);
+  } catch {
+    sttProvider = undefined; // not configured — routes/voice.ts reports this plainly, never fakes a transcript
+  }
+
+  let ttsProvider: TTSProvider | undefined;
+  try {
+    ttsProvider = createTTSProvider(config.voice.ttsProvider, config.voice.apiKey);
+  } catch {
+    ttsProvider = undefined;
+  }
+
   const scheduler = new Scheduler(
     repos.automations,
     repos.automationRuns,
@@ -106,5 +123,7 @@ export async function createAppContext(logger: Logger): Promise<AppContext> {
     logger,
     browserManager,
     scheduler,
+    sttProvider,
+    ttsProvider,
   };
 }

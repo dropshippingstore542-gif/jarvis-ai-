@@ -21,8 +21,9 @@ const envSchema = z.object({
     .default("false")
     .transform((v) => v === "true"),
 
-  TTS_PROVIDER: z.string().default("none"),
-  STT_PROVIDER: z.string().default("none"),
+  TTS_PROVIDER: z.enum(["none", "openai"]).default("none"),
+  STT_PROVIDER: z.enum(["none", "openai"]).default("none"),
+  VOICE_API_KEY: z.string().optional(),
   WAKE_WORD: z.string().default("JARVIS"),
   PROACTIVE_MODE: z.enum(["off", "low", "normal", "high"]).default("off"),
 
@@ -60,6 +61,7 @@ export const config = {
   voice: {
     ttsProvider: env.TTS_PROVIDER,
     sttProvider: env.STT_PROVIDER,
+    apiKey: env.VOICE_API_KEY,
     wakeWord: env.WAKE_WORD,
   },
   proactiveMode: env.PROACTIVE_MODE,

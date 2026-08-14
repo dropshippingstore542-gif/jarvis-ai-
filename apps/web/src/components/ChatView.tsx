@@ -4,6 +4,7 @@ import { useConversationSocket } from "../lib/useConversationSocket";
 import type { ActivityEntry, BrainEvent } from "../lib/types";
 import { ActivityChip } from "./ActivityChip";
 import { QuickActions } from "./QuickActions";
+import { VoiceButton } from "./VoiceButton";
 
 type TimelineItem =
   | { kind: "message"; id: string; role: "user" | "assistant"; content: string; streaming?: boolean }
@@ -21,8 +22,10 @@ export function ChatView({
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingIdRef = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setTimeline([]);
@@ -121,6 +124,31 @@ export function ChatView({
     setSending(true);
   }
 
+  async function handleVoiceRecorded(audio: { mimeType: string; base64: string }) {
+    setVoiceError(null);
+    setSending(true);
+    try {
+      const { transcript, events, speech } = await api.sendVoiceMessage(conversationId, audio);
+      setTimeline((prev) => [
+        ...prev,
+        { kind: "message", id: `user-voice-${Date.now()}`, role: "user", content: transcript },
+      ]);
+      for (const event of events) {
+        onEvent(event);
+        handleEvent(event);
+      }
+      if (speech) {
+        audioRef.current = new Audio(`data:${speech.mimeType};base64,${speech.base64}`);
+        onEvent({ type: "status", status: "speaking" });
+        audioRef.current.onended = () => onEvent({ type: "status", status: "idle" });
+        void audioRef.current.play();
+      }
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : String(err));
+      setSending(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <QuickActions onPrompt={(p) => setDraft(p)} onNavigate={onNavigate} />
@@ -136,7 +164,11 @@ export function ChatView({
           ),
         )}
       </div>
+      {voiceError && (
+        <div style={{ padding: "0 20px 8px", fontSize: 12, color: "var(--danger)" }}>{voiceError}</div>
+      )}
       <div className="composer">
+        <VoiceButton onRecorded={(audio) => void handleVoiceRecorded(audio)} disabled={sending} />
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

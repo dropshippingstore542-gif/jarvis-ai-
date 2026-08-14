@@ -8,7 +8,16 @@ import type {
 } from "./types.js";
 import { LLMConfigError } from "./types.js";
 
-function toOpenAIMessages(
+function imageContentParts(
+  images: ChatMessage["images"],
+): OpenAI.Chat.ChatCompletionContentPartImage[] {
+  return (images ?? []).map((img) => ({
+    type: "image_url",
+    image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+  }));
+}
+
+export function toOpenAIMessages(
   system: string | undefined,
   messages: ChatMessage[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
@@ -18,11 +27,26 @@ function toOpenAIMessages(
   for (const msg of messages) {
     if (msg.role === "system") continue;
     if (msg.role === "tool") {
+      // The OpenAI tool-result message schema is text-only — it cannot carry
+      // image content. So the model still genuinely sees the image, attach it
+      // as a synthetic user turn right after the (text) tool result, rather
+      // than silently dropping it.
       out.push({
         role: "tool",
         tool_call_id: msg.toolCallId ?? "",
-        content: msg.content,
+        content: msg.images?.length
+          ? `${msg.content} (image attached in the next message)`
+          : msg.content,
       });
+      if (msg.images?.length) {
+        out.push({
+          role: "user",
+          content: [
+            { type: "text", text: `Image result from ${msg.toolName ?? "the last tool call"}:` },
+            ...imageContentParts(msg.images),
+          ],
+        });
+      }
       continue;
     }
     if (msg.role === "assistant" && msg.toolCalls?.length) {
@@ -35,6 +59,13 @@ function toOpenAIMessages(
           function: { name: call.name, arguments: JSON.stringify(call.input) },
         })),
       });
+      continue;
+    }
+    if (msg.images?.length) {
+      out.push({
+        role: msg.role === "assistant" ? "assistant" : "user",
+        content: [{ type: "text", text: msg.content }, ...imageContentParts(msg.images)],
+      } as OpenAI.Chat.ChatCompletionUserMessageParam);
       continue;
     }
     out.push({ role: msg.role, content: msg.content });

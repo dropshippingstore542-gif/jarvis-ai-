@@ -12,20 +12,34 @@ import { LLMConfigError } from "./types.js";
 type AnthropicMessage = Anthropic.MessageParam;
 type AnthropicContentBlock =
   | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
   | { type: "tool_use"; id: string; name: string; input: unknown }
-  | { type: "tool_result"; tool_use_id: string; content: string };
+  | { type: "tool_result"; tool_use_id: string; content: string | AnthropicContentBlock[] };
 
-function toAnthropicMessages(messages: ChatMessage[]): AnthropicMessage[] {
+function imageBlocks(images: ChatMessage["images"]): AnthropicContentBlock[] {
+  return (images ?? []).map((img) => ({
+    type: "image",
+    source: { type: "base64", media_type: img.mimeType, data: img.base64 },
+  }));
+}
+
+export function toAnthropicMessages(messages: ChatMessage[]): AnthropicMessage[] {
   const out: AnthropicMessage[] = [];
 
   for (const msg of messages) {
     if (msg.role === "system") continue; // handled separately
 
     if (msg.role === "tool") {
+      // Anthropic supports images inside a tool_result's content array — the
+      // model genuinely sees a screenshot/file a tool returned, not a text
+      // description of it.
+      const content: string | AnthropicContentBlock[] = msg.images?.length
+        ? [{ type: "text", text: msg.content }, ...imageBlocks(msg.images)]
+        : msg.content;
       const block: AnthropicContentBlock = {
         type: "tool_result",
         tool_use_id: msg.toolCallId ?? "",
-        content: msg.content,
+        content,
       };
       const last = out[out.length - 1];
       if (last && last.role === "user" && Array.isArray(last.content)) {
@@ -46,7 +60,16 @@ function toAnthropicMessages(messages: ChatMessage[]): AnthropicMessage[] {
       continue;
     }
 
-    out.push({ role: msg.role === "assistant" ? "assistant" : "user", content: msg.content });
+    const role = msg.role === "assistant" ? "assistant" : "user";
+    if (msg.images?.length) {
+      out.push({
+        role,
+        content: [{ type: "text", text: msg.content }, ...imageBlocks(msg.images)] as never,
+      });
+      continue;
+    }
+
+    out.push({ role, content: msg.content });
   }
 
   return out;

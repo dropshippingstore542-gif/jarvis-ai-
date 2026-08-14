@@ -24,6 +24,9 @@ export interface FilesystemTools {
   read: Tool<{ path: string }, { content: string }>;
   write: Tool<{ path: string; content: string }, { bytesWritten: number }>;
   list: Tool<{ path?: string }, { entries: { name: string; type: "file" | "directory" }[] }>;
+  mkdir: Tool<{ path: string }, { created: string }>;
+  move: Tool<{ from: string; to: string }, { moved: boolean }>;
+  delete: Tool<{ path: string; recursive?: boolean }, { deleted: boolean }>;
 }
 
 export function createFilesystemTools(): FilesystemTools {
@@ -83,5 +86,59 @@ export function createFilesystemTools(): FilesystemTools {
     },
   };
 
-  return { read, write, list };
+  const mkdir: Tool<{ path: string }, { created: string }> = {
+    name: "filesystem.mkdir",
+    description: "Create a directory (and any missing parent directories) in the sandboxed workspace.",
+    inputSchema: z.object({ path: z.string().min(1) }),
+    outputSchema: z.object({ created: z.string() }),
+    permission: "low",
+    async execute(input, ctx) {
+      const target = resolveSafePath(ctx.workspaceDir, input.path);
+      await fs.mkdir(target, { recursive: true });
+      return { created: input.path };
+    },
+  };
+
+  const move: Tool<{ from: string; to: string }, { moved: boolean }> = {
+    name: "filesystem.move",
+    description:
+      "Move or rename a file or directory within the sandboxed workspace. Refuses to overwrite an " +
+      "existing file at the destination.",
+    inputSchema: z.object({ from: z.string().min(1), to: z.string().min(1) }),
+    outputSchema: z.object({ moved: z.boolean() }),
+    permission: "low",
+    async execute(input, ctx) {
+      const from = resolveSafePath(ctx.workspaceDir, input.from);
+      const to = resolveSafePath(ctx.workspaceDir, input.to);
+
+      const destinationExists = await fs
+        .access(to)
+        .then(() => true)
+        .catch(() => false);
+      if (destinationExists) {
+        throw new Error(`Refusing to move: "${input.to}" already exists.`);
+      }
+
+      await fs.mkdir(path.dirname(to), { recursive: true });
+      await fs.rename(from, to);
+      return { moved: true };
+    },
+  };
+
+  const del: Tool<{ path: string; recursive?: boolean }, { deleted: boolean }> = {
+    name: "filesystem.delete",
+    description:
+      "Permanently delete a file or directory from the sandboxed workspace. Irreversible — the " +
+      "highest-risk filesystem operation, requires explicit approval.",
+    inputSchema: z.object({ path: z.string().min(1), recursive: z.boolean().optional() }),
+    outputSchema: z.object({ deleted: z.boolean() }),
+    permission: "high",
+    async execute(input, ctx) {
+      const target = resolveSafePath(ctx.workspaceDir, input.path);
+      await fs.rm(target, { recursive: input.recursive ?? false, force: false });
+      return { deleted: true };
+    },
+  };
+
+  return { read, write, list, mkdir, move, delete: del };
 }

@@ -68,4 +68,41 @@ describe("filesystem tools execute within the sandbox", () => {
     const names = result.entries.map((e) => e.name).sort();
     expect(names).toEqual(["a.txt", "dir"]);
   });
+
+  it("creates nested directories with mkdir", async () => {
+    const { mkdir, list } = createFilesystemTools();
+    await mkdir.execute({ path: "a/b/c" }, ctx);
+    const result = await list.execute({ path: "a/b" }, ctx);
+    expect(result.entries).toEqual([{ name: "c", type: "directory" }]);
+  });
+
+  it("moves a file and refuses to overwrite an existing destination", async () => {
+    const { write, move, read } = createFilesystemTools();
+    await write.execute({ path: "a.txt", content: "hello" }, ctx);
+    await move.execute({ from: "a.txt", to: "b/a.txt" }, ctx);
+    expect((await read.execute({ path: "b/a.txt" }, ctx)).content).toBe("hello");
+    await expect(read.execute({ path: "a.txt" }, ctx)).rejects.toThrow();
+
+    await write.execute({ path: "c.txt", content: "other" }, ctx);
+    await expect(move.execute({ from: "c.txt", to: "b/a.txt" }, ctx)).rejects.toThrow(/already exists/);
+  });
+
+  it("deletes a file, and refuses non-empty directories without recursive:true", async () => {
+    const { write, delete: del, list } = createFilesystemTools();
+    await write.execute({ path: "gone.txt", content: "x" }, ctx);
+    await del.execute({ path: "gone.txt" }, ctx);
+    await expect(list.execute({}, ctx).then((r) => r.entries.some((e) => e.name === "gone.txt"))).resolves.toBe(
+      false,
+    );
+
+    await write.execute({ path: "dir/inner.txt", content: "x" }, ctx);
+    await expect(del.execute({ path: "dir" }, ctx)).rejects.toThrow();
+    await del.execute({ path: "dir", recursive: true }, ctx);
+  });
+
+  it("refuses filesystem.move/delete outside the workspace", async () => {
+    const { move, delete: del } = createFilesystemTools();
+    await expect(move.execute({ from: "../x.txt", to: "y.txt" }, ctx)).rejects.toThrow(PathTraversalError);
+    await expect(del.execute({ path: "../x.txt" }, ctx)).rejects.toThrow(PathTraversalError);
+  });
 });

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS messages (
   tool_calls TEXT,
   tool_call_id TEXT,
   tool_name TEXT,
+  images TEXT,
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);

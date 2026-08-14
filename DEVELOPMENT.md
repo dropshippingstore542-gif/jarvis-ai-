@@ -73,6 +73,28 @@ For a capability that belongs outside the core repo (a third-party
 integration, something optional), write it as a **plugin** instead — see
 PLUGIN_DEVELOPMENT.md.
 
+### Making a tool the model can actually see the output of (vision)
+
+Any tool can return a real image, not just `browser.screenshot`/
+`vision.describe_image`. Include a field literally named `image` shaped
+like `{ mimeType: string; base64: string }` in your output (declare it in
+`outputSchema` too):
+
+```ts
+outputSchema: z.object({
+  /* ...your other fields... */
+  image: z.object({ mimeType: z.string(), base64: z.string() }),
+}),
+```
+
+The orchestrator (`brain/orchestrator.ts`) automatically detects that field
+(`extractImageAttachment` from `@jarvis/core`), attaches the real bytes to
+the tool-result message as a genuine multi-modal attachment, and strips the
+base64 out of the JSON text version so it isn't duplicated. No other wiring
+needed — see ARCHITECTURE.md's "Vision" section for how each provider
+represents that differently, and `orchestrator.test.ts` for a worked
+example asserting the image survives into the next model turn.
+
 ## Testing
 
 Vitest, run per-package (`npm run test --workspace=@jarvis/server`) or all
@@ -96,6 +118,25 @@ at once (`npm run test`). Conventions used so far:
   `OrchestratorLike` (just an async generator you control), not a real
   LLM — this is what lets the overlapping-tick idempotency test assert
   "exactly one execution" deterministically instead of racing a timer.
+- `orchestrator.test.ts` uses the same scripted-`LLMProvider` pattern: a
+  fake provider that returns a queued list of `ChatStreamEvent[]` per call,
+  so you can assert precisely what messages the *second* model turn
+  received (e.g. that a tool's image made it in) without any network
+  dependency. Reuse this pattern for orchestrator-level assertions rather
+  than mocking `fetch` at the SDK layer.
+- Vision tools (`browserTools.test.ts`'s screenshot case,
+  `visionTools.test.ts`) assert against real bytes — a real PNG signature
+  read back from a real screenshot, a real 1×1 PNG fixture round-tripped
+  byte-for-byte through `vision.describe_image` — not mocked image data.
+- Voice providers (`OpenAITTSProvider.test.ts`, `OpenAISTTProvider.test.ts`)
+  mock `fetch` with `vi.stubGlobal` (remember `vi.unstubAllGlobals()` in
+  `afterEach`) and assert the *request* shape (URL, auth header, multipart
+  form fields) as much as the response parsing — these are real HTTP
+  clients, so the request shape is exactly what would hit OpenAI's API.
+  `routes/voice.test.ts` injects fake `STTProvider`/`TTSProvider` objects
+  into a hand-built `AppContext` (see `context.ts`'s `sttProvider`/
+  `ttsProvider` fields) rather than fighting `config.ts`'s env-var
+  singleton — much simpler than resetting modules mid-test.
 
 ## Automations
 

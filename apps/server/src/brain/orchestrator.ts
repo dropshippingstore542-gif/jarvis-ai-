@@ -1,4 +1,5 @@
 import {
+  extractImageAttachment,
   requiresApproval,
   toToolSpec,
   type ChatMessage,
@@ -25,10 +26,23 @@ function toChatMessage(stored: StoredMessage): ChatMessage {
   return {
     role: stored.role,
     content: stored.content,
+    images: stored.images,
     toolCalls: stored.toolCalls,
     toolCallId: stored.toolCallId,
     toolName: stored.toolName,
   };
+}
+
+/**
+ * A tool's real image bytes go into ChatMessage.images (full fidelity, so the
+ * model still sees them on the next turn — see MessageRepository). They don't
+ * belong duplicated inside the JSON text content too, so this replaces the
+ * `image` field there with a short marker before it's stringified.
+ */
+function redactImageField(output: unknown): unknown {
+  if (!output || typeof output !== "object" || !("image" in output)) return output;
+  const { image, ...rest } = output as Record<string, unknown> & { image?: { mimeType?: string } };
+  return { ...rest, image: image ? { mimeType: image.mimeType, attached: true } : undefined };
 }
 
 export interface HandleMessageParams {
@@ -231,11 +245,14 @@ export class Orchestrator {
       });
 
       yield { type: "tool_result", toolName: tool.name, output, verified, note };
+
+      const image = extractImageAttachment(output);
       return {
         role: "tool",
-        content: JSON.stringify(output),
+        content: JSON.stringify(image ? redactImageField(output) : output),
         toolCallId: call.id,
         toolName: call.name,
+        images: image ? [image] : undefined,
       };
     } catch (err) {
       const durationMs = Date.now() - start;

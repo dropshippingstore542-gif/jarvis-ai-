@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import type { ChatMessage, ToolCallRequest } from "@jarvis/core";
+import type { ChatMessage, ImageAttachment, ToolCallRequest } from "@jarvis/core";
 import type { DB } from "../client.js";
 
 export interface StoredMessage extends ChatMessage {
@@ -16,6 +16,7 @@ interface MessageRow {
   tool_calls: string | null;
   tool_call_id: string | null;
   tool_name: string | null;
+  images: string | null;
   created_at: string;
 }
 
@@ -28,6 +29,7 @@ function fromRow(row: MessageRow): StoredMessage {
     toolCalls: row.tool_calls ? (JSON.parse(row.tool_calls) as ToolCallRequest[]) : undefined,
     toolCallId: row.tool_call_id ?? undefined,
     toolName: row.tool_name ?? undefined,
+    images: row.images ? (JSON.parse(row.images) as ImageAttachment[]) : undefined,
     createdAt: row.created_at,
   };
 }
@@ -44,8 +46,8 @@ export class MessageRepository {
     };
     this.db
       .prepare(
-        `INSERT INTO messages (id, conversation_id, role, content, tool_calls, tool_call_id, tool_name, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO messages (id, conversation_id, role, content, tool_calls, tool_call_id, tool_name, images, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         stored.id,
@@ -55,6 +57,7 @@ export class MessageRepository {
         stored.toolCalls ? JSON.stringify(stored.toolCalls) : null,
         stored.toolCallId ?? null,
         stored.toolName ?? null,
+        stored.images ? JSON.stringify(stored.images) : null,
         stored.createdAt,
       );
     return stored;
