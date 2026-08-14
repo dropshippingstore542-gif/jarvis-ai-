@@ -11,6 +11,7 @@ import { registerAuditRoutes } from "./routes/audit.js";
 import { registerApprovalRoutes } from "./routes/approvals.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerWsRoutes } from "./routes/ws.js";
+import { registerAutomationRoutes } from "./routes/automations.js";
 
 export async function buildApp(ctx: AppContext) {
   const app = Fastify({ logger: false });
@@ -30,6 +31,7 @@ export async function buildApp(ctx: AppContext) {
   registerAuditRoutes(app, ctx);
   registerApprovalRoutes(app, ctx);
   registerSettingsRoutes(app, ctx);
+  registerAutomationRoutes(app, ctx);
   registerWsRoutes(app, ctx);
 
   return app;

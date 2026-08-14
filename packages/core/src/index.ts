@@ -2,6 +2,7 @@ export * from "./types/logger.js";
 export * from "./types/permissions.js";
 export * from "./types/memory.js";
 export * from "./types/plugin.js";
+export * from "./types/automation.js";
 
 export * from "./llm/types.js";
 export * from "./llm/factory.js";

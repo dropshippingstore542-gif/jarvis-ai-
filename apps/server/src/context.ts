@@ -10,6 +10,8 @@ import { AuditService } from "./audit/auditService.js";
 import { Orchestrator } from "./brain/orchestrator.js";
 import { WsHub } from "./ws/wsHub.js";
 import { loadPlugins } from "./plugins/loader.js";
+import { BrowserManager } from "./browser/browserManager.js";
+import { Scheduler } from "./automation/scheduler.js";
 
 export interface AppContext {
   repos: Repositories;
@@ -20,6 +22,8 @@ export interface AppContext {
   orchestrator: Orchestrator;
   wsHub: WsHub;
   logger: Logger;
+  browserManager: BrowserManager;
+  scheduler: Scheduler;
 }
 
 export async function createAppContext(logger: Logger): Promise<AppContext> {
@@ -28,8 +32,14 @@ export async function createAppContext(logger: Logger): Promise<AppContext> {
   const memoryService = new MemoryService(repos.memories);
   const toolRegistry = new ToolRegistry();
   const wsHub = new WsHub();
+  const browserManager = new BrowserManager(logger.child({ module: "browser" }));
 
-  registerBuiltinTools(toolRegistry, { memoryService, webSearchConfig: config.webSearch });
+  registerBuiltinTools(toolRegistry, {
+    memoryService,
+    webSearchConfig: config.webSearch,
+    browserManager,
+    browserConfig: config.browser,
+  });
   await loadPlugins(toolRegistry, logger);
 
   const auditService = new AuditService(repos.auditLog);
@@ -76,5 +86,25 @@ export async function createAppContext(logger: Logger): Promise<AppContext> {
     config.voice.wakeWord,
   );
 
-  return { repos, memoryService, toolRegistry, permissionEngine, auditService, orchestrator, wsHub, logger };
+  const scheduler = new Scheduler(
+    repos.automations,
+    repos.automationRuns,
+    repos.conversations,
+    orchestrator,
+    config.workspaceDir,
+    logger.child({ module: "scheduler" }),
+  );
+
+  return {
+    repos,
+    memoryService,
+    toolRegistry,
+    permissionEngine,
+    auditService,
+    orchestrator,
+    wsHub,
+    logger,
+    browserManager,
+    scheduler,
+  };
 }

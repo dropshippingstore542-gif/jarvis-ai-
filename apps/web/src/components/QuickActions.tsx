@@ -1,12 +1,12 @@
 type QuickAction =
   | { label: string; prompt: string }
-  | { label: string; view: "settings" };
+  | { label: string; view: "automations" };
 
 const ACTIONS: QuickAction[] = [
   { label: "Search Web", prompt: "Search the web for " },
   { label: "List Workspace Files", prompt: "List the files in my workspace." },
   { label: "What do you remember about me?", prompt: "What do you remember about me?" },
-  { label: "View Automations", view: "settings" },
+  { label: "View Automations", view: "automations" },
 ];
 
 export function QuickActions({
@@ -14,7 +14,7 @@ export function QuickActions({
   onNavigate,
 }: {
   onPrompt: (text: string) => void;
-  onNavigate: (view: "settings") => void;
+  onNavigate: (view: "automations") => void;
 }) {
   return (
     <div className="quick-actions">

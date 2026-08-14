@@ -6,14 +6,16 @@ import { ChatView } from "./components/ChatView";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { AuditLogPanel } from "./components/AuditLogPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { AutomationsPanel } from "./components/AutomationsPanel";
 import { ApprovalModal } from "./components/ApprovalModal";
 
-type View = "chat" | "memory" | "audit" | "settings";
+type View = "chat" | "memory" | "audit" | "automations" | "settings";
 
 const VIEW_LABELS: Record<View, string> = {
   chat: "Conversation",
   memory: "Memory",
   audit: "Audit Log",
+  automations: "Automations",
   settings: "Settings",
 };
 
@@ -72,7 +74,7 @@ export default function App() {
           JARVIS<span className="dot">.</span>
         </div>
 
-        {(["chat", "memory", "audit", "settings"] as View[]).map((v) => (
+        {(["chat", "memory", "audit", "automations", "settings"] as View[]).map((v) => (
           <button key={v} className={`nav-item ${view === v ? "active" : ""}`} onClick={() => setView(v)}>
             {VIEW_LABELS[v]}
           </button>
@@ -111,6 +113,7 @@ export default function App() {
         )}
         {view === "memory" && <MemoryPanel />}
         {view === "audit" && <AuditLogPanel />}
+        {view === "automations" && <AutomationsPanel />}
         {view === "settings" && <SettingsPanel />}
       </main>
 

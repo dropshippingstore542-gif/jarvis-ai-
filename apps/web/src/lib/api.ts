@@ -1,5 +1,7 @@
 import type {
   AuditLogEntry,
+  Automation,
+  AutomationRun,
   Conversation,
   MemoryRecord,
   PendingAction,
@@ -68,4 +70,16 @@ export const api = {
       webSearchProvider: string;
       custom: Record<string, string>;
     }>("/api/settings"),
+
+  listAutomations: () => request<{ automations: Automation[] }>("/api/automations"),
+  createAutomation: (input: { name: string; cronExpression: string; prompt: string }) =>
+    request<Automation>("/api/automations", { method: "POST", body: JSON.stringify(input) }),
+  setAutomationEnabled: (id: string, enabled: boolean) =>
+    request<Automation>(`/api/automations/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
+  deleteAutomation: (id: string) =>
+    request<{ removed: boolean }>(`/api/automations/${id}`, { method: "DELETE" }),
+  runAutomationNow: (id: string) =>
+    request<Automation>(`/api/automations/${id}/run`, { method: "POST" }),
+  listAutomationRuns: (id: string) =>
+    request<{ runs: AutomationRun[] }>(`/api/automations/${id}/runs`),
 };

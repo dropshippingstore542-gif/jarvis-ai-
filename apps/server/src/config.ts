@@ -14,6 +14,13 @@ const envSchema = z.object({
   WEB_SEARCH_PROVIDER: z.enum(["none", "brave", "serpapi"]).default("none"),
   WEB_SEARCH_API_KEY: z.string().optional(),
 
+  // SSRF guard for browser.* tools — see SECURITY.md. Leave false unless you
+  // deliberately want the assistant able to reach your internal network.
+  JARVIS_BROWSER_ALLOW_PRIVATE_NETWORKS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
   TTS_PROVIDER: z.string().default("none"),
   STT_PROVIDER: z.string().default("none"),
   WAKE_WORD: z.string().default("JARVIS"),
@@ -46,6 +53,9 @@ export const config = {
   webSearch: {
     provider: env.WEB_SEARCH_PROVIDER,
     apiKey: env.WEB_SEARCH_API_KEY,
+  },
+  browser: {
+    allowPrivateNetworks: env.JARVIS_BROWSER_ALLOW_PRIVATE_NETWORKS,
   },
   voice: {
     ttsProvider: env.TTS_PROVIDER,

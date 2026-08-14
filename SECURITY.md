@@ -7,8 +7,8 @@ Every tool declares a risk tier (`packages/core/src/types/permissions.ts`):
 | Tier | Examples | Behavior |
 |---|---|---|
 | `safe` | read memory, search web, list files | auto-executes, audited |
-| `low` | write a file, create a memory | auto-executes, audited |
-| `medium` | (future) send a message, edit a shared doc | requires explicit approval |
+| `low` | write a file, create a memory, open a page in the browser | auto-executes, audited |
+| `medium` | click/type in the browser, (future) edit a shared doc | requires explicit approval |
 | `high` | (future) delete files, send email, spend money | requires typed "CONFIRM" approval |
 
 `medium`/`high` actions create a `pending_actions` row and block the
@@ -33,6 +33,40 @@ reject anything that escapes it (`resolveSafePath` in
 `filesystemTools.test.ts`: `../`, absolute paths, and `sub/../../escape`
 style traversal are all rejected). The assistant cannot read or write
 anywhere else on disk through this tool.
+
+## Browser automation (SSRF guard)
+
+`browser.open` makes the server itself issue an outbound HTTP request to
+whatever URL the model asks for — the classic SSRF shape. Before every
+navigation, `apps/server/src/browser/urlSafety.ts` blocks loopback
+(`127.0.0.1`, `localhost`, `::1`), private ranges (`10/8`, `172.16/12`,
+`192.168/16`), and link-local addresses (`169.254/16`, which includes the
+`169.254.169.254` cloud instance-metadata endpoint many SSRF exploits
+target). Hostnames are resolved via DNS first, so `some-internal-name.local`
+pointing at a blocked address is caught, not just IP literals typed
+directly. See `urlSafety.test.ts`. This is an allowlist-by-exclusion, not a
+sandbox — the browser process still runs with the server's network access,
+so treat `JARVIS_BROWSER_ALLOW_PRIVATE_NETWORKS=true` as equivalent to
+giving the model a foothold on your internal network, and only set it if
+you mean to.
+
+Page content read via `browser.open`/`.click`/`.type` is treated as
+external, untrusted data by the system prompt (see "Prompt-injection
+defense" below) — the same rule as `web.search` results.
+
+## Automation engine
+
+Scheduled automations run through the exact same orchestrator, tools, and
+`PermissionEngine` as an interactive chat message — there's no separate,
+weaker code path for scheduled work. The practical consequence: if a
+scheduled automation's prompt causes the model to request a `medium`/`high`
+tool call, that run blocks waiting for approval like any other, but nobody
+is watching a 3am automation's WebSocket — it will simply time out after 15
+minutes and be recorded as a failed run. This is a known, honest gap, not
+silently papered over: it's safer to have automations quietly fail closed
+than to have them auto-approve risky actions unattended. If you write an
+automation prompt, keep it to `safe`/`low` actions (memory, filesystem,
+read-only browsing) unless you're actively available to approve it.
 
 ## Secrets
 
@@ -89,8 +123,8 @@ duration. There is no API to delete or edit rows.
 ## What's honest vs. not implemented
 
 Per spec §40/§41: nothing in this codebase pretends to succeed. Tools that
-aren't built yet (`browser.*`, `computer.*`, `calendar.*`, `email.*`) throw
-a `ToolNotImplementedError` naming exactly what's missing — they are never
+aren't built yet (`computer.*`, `calendar.*`, `email.*`) throw a
+`ToolNotImplementedError` naming exactly what's missing — they are never
 wired to return a fabricated success. Failed tool calls, denied approvals,
 and LLM provider errors are all reported to the user as failures, never
 silently swallowed.

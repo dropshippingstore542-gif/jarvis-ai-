@@ -14,8 +14,12 @@ async function main() {
     model: config.ai.model,
   });
 
+  ctx.scheduler.start();
+
   const shutdown = async () => {
     logger.info("Shutting down…");
+    ctx.scheduler.stop();
+    await ctx.browserManager.shutdown();
     await app.close();
     process.exit(0);
   };

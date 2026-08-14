@@ -16,7 +16,7 @@ export function ChatView({
 }: {
   conversationId: string;
   onEvent: (event: BrainEvent) => void;
-  onNavigate: (view: "settings") => void;
+  onNavigate: (view: "automations") => void;
 }) {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [draft, setDraft] = useState("");

@@ -30,18 +30,6 @@ function stub(
 export function createStubTools(): Tool[] {
   return [
     stub(
-      "browser.open",
-      "Open a URL in a controlled browser and read its content",
-      "low",
-      "a browser automation module (Playwright) wired to a sandboxed browser context",
-    ),
-    stub(
-      "browser.click",
-      "Click an element on the currently open page",
-      "medium",
-      "the browser automation module plus DOM/accessibility-tree element resolution",
-    ),
-    stub(
       "computer.take_screenshot",
       "Capture the current screen for the vision subsystem",
       "low",

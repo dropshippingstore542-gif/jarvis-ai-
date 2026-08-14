@@ -41,6 +41,12 @@ mid-session.
 With `WEB_SEARCH_PROVIDER=none`, `web.search` reports itself as
 unconfigured rather than returning fabricated results.
 
+## Browser automation
+
+| Variable | Default | Notes |
+|---|---|---|
+| `JARVIS_BROWSER_ALLOW_PRIVATE_NETWORKS` | `false` | set `true` only to let `browser.*` reach loopback/private/link-local addresses — see SECURITY.md's SSRF guard section before enabling |
+
 ## Voice (stored, not yet wired to a real pipeline — see ARCHITECTURE.md)
 
 | Variable | Default | Notes |
@@ -53,7 +59,7 @@ unconfigured rather than returning fabricated results.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `PROACTIVE_MODE` | `off` | `off` \| `low` \| `normal` \| `high` — reserved for the automation engine (not built yet) |
+| `PROACTIVE_MODE` | `off` | `off` \| `low` \| `normal` \| `high` — the automation engine runs regardless of this setting; it only governs how notifications will be surfaced once a delivery channel exists (see ARCHITECTURE.md) |
 
 ## Server
 

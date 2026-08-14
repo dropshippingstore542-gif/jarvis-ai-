@@ -87,3 +87,28 @@ export interface ActivityEntry {
   error?: string;
   verified?: boolean;
 }
+
+export type AutomationRunStatus = "running" | "success" | "failure";
+
+export interface Automation {
+  id: string;
+  name: string;
+  cronExpression: string;
+  prompt: string;
+  enabled: boolean;
+  conversationId?: string;
+  nextRunAt?: string;
+  lastRunAt?: string;
+  lastRunStatus?: AutomationRunStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: AutomationRunStatus;
+  summary?: string;
+}

@@ -85,6 +85,29 @@ at once (`npm run test`). Conventions used so far:
   (`packages/core/src/llm/factory.test.ts`), not against a live API — there
   is no mock HTTP layer for the streaming SDKs yet. If you add real
   request/response assertions, mock the SDK client, not the network.
+- Browser tools (`browserTools.test.ts`) run against a **real** headless
+  Chromium via Playwright, pointed at a throwaway `http:` server started in
+  the test itself — no live network dependency, no snapshot fakery. Needs a
+  Chromium binary; set `PLAYWRIGHT_CHROMIUM_PATH` if yours isn't at the
+  default `/opt/pw-browsers/chromium`, or run `npx playwright install
+  chromium` if you don't have one. `urlSafety.test.ts` only uses IP
+  literals, deliberately avoiding a DNS dependency.
+- The scheduler (`scheduler.test.ts`) is tested against a fake
+  `OrchestratorLike` (just an async generator you control), not a real
+  LLM — this is what lets the overlapping-tick idempotency test assert
+  "exactly one execution" deterministically instead of racing a timer.
+
+## Automations
+
+An automation is a cron expression (`0 8 * * *`, evaluated in the server's
+local timezone) plus a prompt string sent through the same orchestrator a
+chat message goes through — same memory, tools, and permission checks
+apply. `Scheduler` (`apps/server/src/automation/scheduler.ts`) polls every
+30s by default; pass a shorter `tickIntervalMs` in tests. See
+ARCHITECTURE.md's "Automation engine & scheduler" section for the
+idempotency/restart-survival design, and SECURITY.md for why a `medium`/
+`high` tool call inside an unattended automation just times out rather than
+auto-approving.
 
 ## Database
 
